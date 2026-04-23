@@ -21,41 +21,41 @@ class EnterpriseManager:
         """validates a cif number """
         if not isinstance(cif, str):
             raise EnterpriseManagementException("CIF code must be a string")
-        p = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
-        if not p.fullmatch(cif):
+        cif_pattern = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
+        if not cif_pattern.fullmatch(cif):
             raise EnterpriseManagementException("Invalid CIF format")
 
-        l = cif[0]
-        n = cif[1:8]
-        u = cif[8]
+        prefix = cif[0]
+        digits = cif[1:8]
+        control_digit = cif[8]
 
-        s1 = 0
-        s2 = 0
+        even_sum = 0
+        odd_sum = 0
 
-        for i in range(len(n)):
+        for i in range(len(digits)):
             if i % 2 == 0:
-                x = int(n[i]) * 2
-                if x > 9:
-                    s1 = s1 + (x // 10) + (x % 10)
+                doubled = int(digits[i]) * 2
+                if doubled > 9:
+                    even_sum = even_sum + (doubled // 10) + (doubled % 10)
                 else:
-                    s1 = s1 + x
+                    even_sum = even_sum + doubled
             else:
-                s2 = s2 + int(n[i])
+                odd_sum = odd_sum + int(digits[i])
 
-        t = s1 + s2
-        u2 = t % 10
-        r = 10 - u2
+        total_sum = even_sum + odd_sum
+        remainder_digit = total_sum % 10
+        calculated_control_value = 10 - remainder_digit
 
-        if r == 10:
-            r = 0
+        if calculated_control_value == 10:
+            calculated_control_value = 0
 
-        dic = "JABCDEFGHI"
+        control_letter_map = "JABCDEFGHI"
 
-        if l in ('A', 'B', 'E', 'H'):
-            if str(r) != u:
+        if prefix in ('A', 'B', 'E', 'H'):
+            if str(calculated_control_value) != control_digit:
                 raise EnterpriseManagementException("Invalid CIF character control number")
-        elif l in ('P', 'Q', 'S', 'K'):
-            if dic[r] != u:
+        elif prefix in ('P', 'Q', 'S', 'K'):
+            if control_letter_map[calculated_control_value] != control_digit:
                 raise EnterpriseManagementException("Invalid CIF character control letter")
         else:
             raise EnterpriseManagementException("CIF type not supported")
