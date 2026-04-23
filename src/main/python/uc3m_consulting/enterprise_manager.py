@@ -17,17 +17,17 @@ class EnterpriseManager:
         pass
 
     @staticmethod
-    def validate_cif(c: str):
+    def validate_cif(cif: str):
         """validates a cif number """
-        if not isinstance(c, str):
+        if not isinstance(cif, str):
             raise EnterpriseManagementException("CIF code must be a string")
         p = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
-        if not p.fullmatch(c):
+        if not p.fullmatch(cif):
             raise EnterpriseManagementException("Invalid CIF format")
 
-        l = c[0]
-        n = c[1:8]
-        u = c[8]
+        l = cif[0]
+        n = cif[1:8]
+        u = cif[8]
 
         s1 = 0
         s2 = 0
