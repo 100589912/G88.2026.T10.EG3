@@ -59,8 +59,8 @@ class EnterpriseManager:
         """validates a cif number """
         if not isinstance(cif, str):
             raise EnterpriseManagementException("CIF code must be a string")
-        cif_REGEX = re.compile(CIF_REGEX)
-        if not cif_REGEX.fullmatch(cif):
+        cif_regex = re.compile(CIF_REGEX)
+        if not cif_regex.fullmatch(cif):
             raise EnterpriseManagementException("Invalid CIF format")
 
         prefix = cif[0]
