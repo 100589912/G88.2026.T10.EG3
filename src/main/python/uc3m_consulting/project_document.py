@@ -1,9 +1,9 @@
-"""Contains the class OrderShipping"""
+"""Contains the class ProjectDocument"""
 from datetime import datetime, timezone
 import hashlib
 
 class ProjectDocument():
-    """Class representing the information required for shipping of an order"""
+    """Class representing the information required for a document for a project"""
 
     def __init__(self, project_id: str, file_name):
         self.__alg = "SHA-256"
