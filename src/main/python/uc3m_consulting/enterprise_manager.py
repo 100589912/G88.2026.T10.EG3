@@ -59,8 +59,8 @@ class EnterpriseManager:
         """validates a cif number """
         if not isinstance(cif, str):
             raise EnterpriseManagementException("CIF code must be a string")
-        cif_pattern = re.compile(CIF_REGEX)
-        if not cif_pattern.fullmatch(cif):
+        cif_REGEX = re.compile(CIF_REGEX)
+        if not cif_REGEX.fullmatch(cif):
             raise EnterpriseManagementException("Invalid CIF format")
 
         prefix = cif[0]
@@ -108,6 +108,36 @@ class EnterpriseManager:
         if parsed_date.year < 2025 or parsed_date.year > 2050:
             raise EnterpriseManagementException("Invalid date format")
         return date_str
+
+    def _validate_budget(self, budget: str):
+        """called in register_project, validates budget"""
+        try:
+            budget_float = float(budget)
+        except ValueError as ex:
+            raise EnterpriseManagementException("Invalid budget amount") from ex
+
+        budget_str = str(budget_float)
+        if '.' in budget_str:
+            decimal_places = len(budget_str.split('.')[1])
+            if decimal_places > 2:
+                raise EnterpriseManagementException("Invalid budget amount")
+
+        if budget_float < 50000 or budget_float > 1000000:
+            raise EnterpriseManagementException("Invalid budget amount")
+
+    def _save_project(self, new_project: EnterpriseProject):
+        """Called in register_project, saves the project to the json file"""
+        project_list = FileStorage.load(PROJECTS_STORE_FILE)
+
+        for p in project_list:
+            if p == new_project.to_json():
+                raise EnterpriseManagementException("Duplicated project in projects list")
+
+        project_list.append(new_project.to_json())
+        FileStorage.save(PROJECTS_STORE_FILE, project_list)
+
+        return new_project.project_id
+
     #pylint: disable=too-many-arguments, too-many-positional-arguments
     def register_project(self,
                          company_cif: str,
@@ -129,18 +159,7 @@ class EnterpriseManager:
             raise EnterpriseManagementException("Invalid department")
         self.validate_starting_date(date)
 
-        try:
-            budget_float  = float(budget)
-        except ValueError as ex:
-            raise EnterpriseManagementException("Invalid budget amount") from ex
-        budget_str = str(budget_float)
-        if '.' in budget_str:
-            decimal_places = len(budget_str.split('.')[1])
-            if decimal_places > 2:
-                raise EnterpriseManagementException("Invalid budget amount")
-        if budget_float < 50000 or budget_float > 1000000:
-            raise EnterpriseManagementException("Invalid budget amount")
-
+        self._validate_budget(budget)
 
         new_project = EnterpriseProject(company_cif=company_cif,
                                         project_acronym=project_acronym,
@@ -149,17 +168,7 @@ class EnterpriseManager:
                                         starting_date=date,
                                         project_budget=budget)
 
-        project_list = FileStorage.load(PROJECTS_STORE_FILE)
-
-        for p in project_list:
-            if p == new_project.to_json():
-                raise EnterpriseManagementException("Duplicated project in projects list")
-
-        project_list.append(new_project.to_json())
-
-        FileStorage.save(PROJECTS_STORE_FILE, project_list)
-
-        return new_project.project_id
+        return self._save_project(new_project)
 
     def _process_document_entry(self, document_entry, date_str):
         timestamp_value = document_entry["register_date"]
