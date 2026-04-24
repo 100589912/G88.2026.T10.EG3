@@ -159,7 +159,23 @@ class EnterpriseManager:
         self._write_json_file(PROJECTS_STORE_FILE, project_list)
         return new_project.project_id
 
+    def _process_document_entry(self, document_entry, date_str):
+        timestamp_value = document_entry["register_date"]
 
+        formatted_doc_date = datetime.fromtimestamp(timestamp_value).strftime("%d/%m/%Y")
+
+        if formatted_doc_date != date_str:
+            return 0
+
+        frozen_date = datetime.fromtimestamp(timestamp_value, tz=timezone.utc)
+
+        with freeze_time(frozen_date):
+            p = ProjectDocument(document_entry["project_id"], document_entry["file_name"])
+
+            if p.document_signature != document_entry["document_signature"]:
+                raise EnterpriseManagementException("Inconsistent document signature")
+
+        return 1
     def find_docs(self, date_str):
         """
         Generates a JSON report counting valid documents for a specific date.
@@ -183,24 +199,8 @@ class EnterpriseManager:
 
         result_count = 0
 
-        # loop to find
         for document_entry in documents_list:
-            timestamp_value = document_entry["register_date"]
-
-            # string conversion for easy match
-            formatted_doc_date = datetime.fromtimestamp(timestamp_value).strftime("%d/%m/%Y")
-
-            if formatted_doc_date == date_str:
-                frozen_date = datetime.fromtimestamp(timestamp_value, tz=timezone.utc)
-                with freeze_time(frozen_date):
-                    # check the project id (thanks to freezetime)
-                    # if project_id are different then the data has been
-                    #manipulated
-                    p = ProjectDocument(document_entry["project_id"], document_entry["file_name"])
-                    if p.document_signature == document_entry["document_signature"]:
-                        result_count = result_count + 1
-                    else:
-                        raise EnterpriseManagementException("Inconsistent document signature")
+            result_count += self._process_document_entry(document_entry, date_str)
 
         if result_count == 0:
             raise EnterpriseManagementException("No documents found")
