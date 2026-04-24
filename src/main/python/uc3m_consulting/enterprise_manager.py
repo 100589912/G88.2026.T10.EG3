@@ -8,13 +8,18 @@ from uc3m_consulting.enterprise_project import EnterpriseProject
 from uc3m_consulting.enterprise_management_exception import EnterpriseManagementException
 from uc3m_consulting.enterprise_manager_config import (PROJECTS_STORE_FILE,
                                                        TEST_DOCUMENTS_STORE_FILE,
-                                                       TEST_NUMDOCS_STORE_FILE)
+                                                       TEST_NUMDOCS_STORE_FILE,
+                                                       CIF_REGEX,
+                                                       PROJECT_ACRONYM_REGEX,
+                                                       PROJECT_DESCRIPTION_REGEX,
+                                                       DEPARTMENT_REGEX,
+                                                       DATE_REGEX)
 from uc3m_consulting.project_document import ProjectDocument
 class DateValidator:
     """Handles all date parsing and validation"""
     @staticmethod
     def parse_and_validate(date_str: str):
-        pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
+        pattern = re.compile(DATE_REGEX)
 
         if not pattern.fullmatch(date_str):
             raise EnterpriseManagementException("Invalid date format")
@@ -54,7 +59,7 @@ class EnterpriseManager:
         """validates a cif number """
         if not isinstance(cif, str):
             raise EnterpriseManagementException("CIF code must be a string")
-        cif_pattern = re.compile(r"^[ABCDEFGHJKNPQRSUVW]\d{7}[0-9A-J]$")
+        cif_pattern = re.compile(CIF_REGEX)
         if not cif_pattern.fullmatch(cif):
             raise EnterpriseManagementException("Invalid CIF format")
 
@@ -114,13 +119,13 @@ class EnterpriseManager:
         """registers a new project"""
         self.validate_cif(company_cif)
 
-        if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", project_acronym):
+        if not re.fullmatch(PROJECT_ACRONYM_REGEX, project_acronym):
             raise EnterpriseManagementException("Invalid acronym")
 
-        if not re.fullmatch(r"^.{10,30}$", project_description):
+        if not re.fullmatch(PROJECT_DESCRIPTION_REGEX, project_description):
             raise EnterpriseManagementException("Invalid description format")
 
-        if not re.fullmatch(r"(HR|FINANCE|LEGAL|LOGISTICS)", department):
+        if not re.fullmatch(DEPARTMENT_REGEX, department):
             raise EnterpriseManagementException("Invalid department")
         self.validate_starting_date(date)
 

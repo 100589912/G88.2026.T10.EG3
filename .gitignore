@@ -3,3 +3,5 @@ venv*
 .idea
 .pybuilder
 target
+.pyc
+__pycache__/
