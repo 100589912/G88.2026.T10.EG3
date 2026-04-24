@@ -10,39 +10,44 @@ from uc3m_consulting.enterprise_manager_config import (PROJECTS_STORE_FILE,
                                                        TEST_DOCUMENTS_STORE_FILE,
                                                        TEST_NUMDOCS_STORE_FILE)
 from uc3m_consulting.project_document import ProjectDocument
+class DateValidator:
+    """Handles all date parsing and validation"""
+    @staticmethod
+    def parse_and_validate(date_str: str):
+        pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
 
-class EnterpriseManager:
-    """Class for providing the methods for managing the orders"""
-    def __init__(self):
-        pass
-
-    def parse_and_validate_date(self, date_str):
-        """Shared date validation + parsing"""
-        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        match_result = date_pattern.fullmatch(date_str)
-        if not match_result:
+        if not pattern.fullmatch(date_str):
             raise EnterpriseManagementException("Invalid date format")
 
         try:
             return datetime.strptime(date_str, "%d/%m/%Y").date()
         except ValueError as ex:
             raise EnterpriseManagementException("Invalid date format") from ex
-
-    def _load_json_file(self, path):
+class FileStorage:
+    """Handles all JSON file operations"""
+    @staticmethod
+    def load(path):
         try:
             with open(path, "r", encoding="utf-8", newline="") as file:
                 return json.load(file)
-        except FileNotFoundError as ex:
-            raise EnterpriseManagementException("Wrong file  or file path") from ex
+        except FileNotFoundError:
+            return []
         except json.JSONDecodeError as ex:
-            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from ex
+            raise EnterpriseManagementException(
+                "JSON Decode Error - Wrong JSON Format"
+            ) from ex
 
-    def _write_json_file(self, path, content):
+    @staticmethod
+    def save(path, content):
         try:
             with open(path, "w", encoding="utf-8", newline="") as file:
                 json.dump(content, file, indent=2)
         except FileNotFoundError as ex:
             raise EnterpriseManagementException("Wrong file  or file path") from ex
+class EnterpriseManager:
+    """Class for providing the methods for managing the orders"""
+    def __init__(self):
+        pass
 
     @staticmethod
     def validate_cif(cif: str):
@@ -91,7 +96,7 @@ class EnterpriseManager:
 
     def validate_starting_date(self, date_str):
         """validates the  date format  using regex"""
-        parsed_date = self.parse_and_validate_date(date_str)
+        parsed_date = DateValidator.parse_and_validate(date_str)
         if parsed_date < datetime.now(timezone.utc).date():
             raise EnterpriseManagementException("Project's date must be today or later.")
 
@@ -108,8 +113,7 @@ class EnterpriseManager:
                          budget: str):
         """registers a new project"""
         self.validate_cif(company_cif)
-        acronym_pattern = re.compile(r"^[a-zA-Z0-9]{5,10}")
-        match_result = acronym_pattern.fullmatch(project_acronym)
+
         if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", project_acronym):
             raise EnterpriseManagementException("Invalid acronym")
 
@@ -122,15 +126,13 @@ class EnterpriseManager:
 
         try:
             budget_float  = float(budget)
-        except ValueError as exc:
-            raise EnterpriseManagementException("Invalid budget amount") from exc
-
+        except ValueError as ex:
+            raise EnterpriseManagementException("Invalid budget amount") from ex
         budget_str = str(budget_float)
         if '.' in budget_str:
             decimal_places = len(budget_str.split('.')[1])
             if decimal_places > 2:
                 raise EnterpriseManagementException("Invalid budget amount")
-
         if budget_float < 50000 or budget_float > 1000000:
             raise EnterpriseManagementException("Invalid budget amount")
 
@@ -142,21 +144,16 @@ class EnterpriseManager:
                                         starting_date=date,
                                         project_budget=budget)
 
-        try:
-            with open(PROJECTS_STORE_FILE, "r", encoding="utf-8", newline="") as file:
-                project_list = json.load(file)
-        except FileNotFoundError:
-            project_list = []
-        except json.JSONDecodeError as error:
-            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from ex
+        project_list = FileStorage.load(PROJECTS_STORE_FILE)
 
-        for existing_project in project_list:
-            if existing_project == new_project.to_json():
+        for p in project_list:
+            if p == new_project.to_json():
                 raise EnterpriseManagementException("Duplicated project in projects list")
 
         project_list.append(new_project.to_json())
 
-        self._write_json_file(PROJECTS_STORE_FILE, project_list)
+        FileStorage.save(PROJECTS_STORE_FILE, project_list)
+
         return new_project.project_id
 
     def _process_document_entry(self, document_entry, date_str):
@@ -193,9 +190,10 @@ class EnterpriseManager:
             EnterpriseManagementException: On invalid date, file IO errors,
                 missing data, or cryptographic integrity failure.
         """
-        self.parse_and_validate_date(date_str)
+        parsed_date = DateValidator.parse_and_validate(date_str)
+        date_str = parsed_date.strftime("%d/%m/%Y")
 
-        documents_list = self._load_json_file(TEST_DOCUMENTS_STORE_FILE)
+        documents_list = FileStorage.load(TEST_DOCUMENTS_STORE_FILE)
 
         result_count = 0
 
@@ -205,21 +203,14 @@ class EnterpriseManager:
         if result_count == 0:
             raise EnterpriseManagementException("No documents found")
         # prepare json text
-        now_str = datetime.now(timezone.utc).timestamp()
-        report_entry  = {"Querydate":  date_str,
-             "ReportDate": now_str,
-             "Numfiles": result_count
-             }
+        report_list = FileStorage.load(TEST_NUMDOCS_STORE_FILE)
 
-        try:
-            report_list = self._load_json_file(TEST_NUMDOCS_STORE_FILE)
-        except EnterpriseManagementException as ex:
-            if "Wrong file" in str(ex):
-                report_list = []
-            else:
-                raise
+        report_list.append({
+            "Querydate": date_str,
+            "ReportDate": datetime.now(timezone.utc).timestamp(),
+            "Numfiles": result_count
+        })
 
-        report_list.append(report_entry)
+        FileStorage.save(TEST_NUMDOCS_STORE_FILE, report_list)
 
-        self._write_json_file(TEST_NUMDOCS_STORE_FILE, report_list)
         return result_count
