@@ -16,6 +16,34 @@ class EnterpriseManager:
     def __init__(self):
         pass
 
+    def parse_and_validate_date(self, date_str):
+        """Shared date validation + parsing"""
+        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
+        match_result = date_pattern.fullmatch(date_str)
+        if not match_result:
+            raise EnterpriseManagementException("Invalid date format")
+
+        try:
+            return datetime.strptime(date_str, "%d/%m/%Y").date()
+        except ValueError as ex:
+            raise EnterpriseManagementException("Invalid date format") from ex
+
+    def _load_json_file(self, path):
+        try:
+            with open(path, "r", encoding="utf-8", newline="") as file:
+                return json.load(file)
+        except FileNotFoundError as ex:
+            raise EnterpriseManagementException("Wrong file  or file path") from ex
+        except json.JSONDecodeError as ex:
+            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from ex
+
+    def _write_json_file(self, path, content):
+        try:
+            with open(path, "w", encoding="utf-8", newline="") as file:
+                json.dump(content, file, indent=2)
+        except FileNotFoundError as ex:
+            raise EnterpriseManagementException("Wrong file  or file path") from ex
+
     @staticmethod
     def validate_cif(cif: str):
         """validates a cif number """
@@ -63,16 +91,7 @@ class EnterpriseManager:
 
     def validate_starting_date(self, date_str):
         """validates the  date format  using regex"""
-        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        match_result = date_pattern.fullmatch(date_str)
-        if not match_result:
-            raise EnterpriseManagementException("Invalid date format")
-
-        try:
-            parsed_date = datetime.strptime(date_str, "%d/%m/%Y").date()
-        except ValueError as error:
-            raise EnterpriseManagementException("Invalid date format") from error
-
+        parsed_date = self.parse_and_validate_date(date_str)
         if parsed_date < datetime.now(timezone.utc).date():
             raise EnterpriseManagementException("Project's date must be today or later.")
 
@@ -91,18 +110,14 @@ class EnterpriseManager:
         self.validate_cif(company_cif)
         acronym_pattern = re.compile(r"^[a-zA-Z0-9]{5,10}")
         match_result = acronym_pattern.fullmatch(project_acronym)
-        if not match_result:
+        if not re.fullmatch(r"^[a-zA-Z0-9]{5,10}", project_acronym):
             raise EnterpriseManagementException("Invalid acronym")
-        description_pattern = re.compile(r"^.{10,30}$")
-        match_result = description_pattern.fullmatch(project_description)
-        if not match_result:
+
+        if not re.fullmatch(r"^.{10,30}$", project_description):
             raise EnterpriseManagementException("Invalid description format")
 
-        acronym_pattern = re.compile(r"(HR|FINANCE|LEGAL|LOGISTICS)")
-        match_result = acronym_pattern.fullmatch(department)
-        if not match_result:
+        if not re.fullmatch(r"(HR|FINANCE|LEGAL|LOGISTICS)", department):
             raise EnterpriseManagementException("Invalid department")
-
         self.validate_starting_date(date)
 
         try:
@@ -141,13 +156,7 @@ class EnterpriseManager:
 
         project_list.append(new_project.to_json())
 
-        try:
-            with open(PROJECTS_STORE_FILE, "w", encoding="utf-8", newline="") as file:
-                json.dump(project_list, file, indent=2)
-        except FileNotFoundError as error:
-            raise EnterpriseManagementException("Wrong file  or file path") from error
-        except json.JSONDecodeError as error:
-            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from error
+        self._write_json_file(PROJECTS_STORE_FILE, project_list)
         return new_project.project_id
 
 
@@ -168,24 +177,9 @@ class EnterpriseManager:
             EnterpriseManagementException: On invalid date, file IO errors,
                 missing data, or cryptographic integrity failure.
         """
-        date_pattern = re.compile(r"^(([0-2]\d|3[0-1])\/(0\d|1[0-2])\/\d\d\d\d)$")
-        match_result = date_pattern.fullmatch(date_str)
-        if not match_result:
-            raise EnterpriseManagementException("Invalid date format")
+        self.parse_and_validate_date(date_str)
 
-        try:
-            parsed_date = datetime.strptime(date_str, "%d/%m/%Y").date()
-        except ValueError as error:
-            raise EnterpriseManagementException("Invalid date format") from error
-
-
-        # open documents
-        try:
-            with open(TEST_DOCUMENTS_STORE_FILE, "r", encoding="utf-8", newline="") as file:
-                documents_list = json.load(file)
-        except FileNotFoundError as error:
-            raise EnterpriseManagementException("Wrong file  or file path") from error
-
+        documents_list = self._load_json_file(TEST_DOCUMENTS_STORE_FILE)
 
         result_count = 0
 
@@ -218,16 +212,14 @@ class EnterpriseManager:
              }
 
         try:
-            with open(TEST_NUMDOCS_STORE_FILE, "r", encoding="utf-8", newline="") as file:
-                report_list = json.load(file)
-        except FileNotFoundError:
-            report_list = []
-        except json.JSONDecodeError as error:
-            raise EnterpriseManagementException("JSON Decode Error - Wrong JSON Format") from error
-        report_list.append(report_entry )
-        try:
-            with open(TEST_NUMDOCS_STORE_FILE, "w", encoding="utf-8", newline="") as file:
-                json.dump(report_list, file, indent=2)
-        except FileNotFoundError as error:
-            raise EnterpriseManagementException("Wrong file  or file path") from error
+            report_list = self._load_json_file(TEST_NUMDOCS_STORE_FILE)
+        except EnterpriseManagementException as ex:
+            if "Wrong file" in str(ex):
+                report_list = []
+            else:
+                raise
+
+        report_list.append(report_entry)
+
+        self._write_json_file(TEST_NUMDOCS_STORE_FILE, report_list)
         return result_count
